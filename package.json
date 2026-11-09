@@ -9,7 +9,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test verifier/replay.test.mjs",
+    "test": "node --test verifier/replay.test.mjs agent/agent.test.mjs",
+    "agent": "node agent/run.mjs --brain claude",
+    "agent:compromised": "node agent/run.mjs --brain compromised",
     "test:contract": "cd contract && cargo test",
     "build:contract": "cd contract && cargo near build non-reproducible-wasm --no-abi && node -e \"require('fs').copyFileSync('target/near/allowance.wasm','../deployment/allowance.wasm')\"",
     "demo": "node scripts/demo.mjs",
@@ -18,6 +20,7 @@
     "verify": "node verifier/verify.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.6.0",
     "near-api-js": "7.2.0"
   }
 }

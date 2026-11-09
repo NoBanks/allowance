@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALLOWANCE</title>
+<meta name="description" content="An AI agent's spending account on NEAR. It can pay, but only inside the box, and every move is on the record.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gloock&family=IBM+Plex+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="sheet">
+  <aside class="rail">
+    <header class="brand">
+      <h1>Allowance</h1>
+      <p class="tag">It can pay, but only inside the box, and every move is on the record.</p>
+    </header>
+
+    <div class="frozen" id="frozen" hidden>
+      <strong>Frozen</strong>
+      <span id="frozen-why"></span>
+    </div>
+
+    <section class="meter" aria-label="Spent today">
+      <p class="label">Spent today</p>
+      <p class="figure"><span id="spent">...</span><small> of <span id="cap">...</span> NEAR</small></p>
+      <div class="bar"><i id="bar"></i></div>
+    </section>
+
+    <dl class="facts">
+      <dt>Vault balance</dt><dd id="balance">...</dd>
+      <dt>Most per payment</dt><dd id="txcap">...</dd>
+      <dt>Reserve, never spendable</dt><dd id="reserve">...</dd>
+      <dt>Hours (UTC)</dt><dd id="hours">...</dd>
+      <dt>Freezes after</dt><dd id="breaker">...</dd>
+    </dl>
+
+    <section class="allow">
+      <p class="label">May be paid</p>
+      <ul id="allowlist"></ul>
+    </section>
+
+    <section class="keys">
+      <p class="label">Keys on this account</p>
+      <p id="keys">...</p>
+    </section>
+
+    <footer class="vault">
+      <p class="label">Vault on NEAR testnet</p>
+      <a id="vault-link" target="_blank" rel="noopener"></a>
+    </footer>
+  </aside>
+
+  <main class="book">
+    <div class="book-head">
+      <div>
+        <h2>The record</h2>
+        <p class="count" id="count">Reading the chain...</p>
+      </div>
+      <div class="actions">
+        <button id="verify" type="button" disabled>Verify it yourself</button>
+        <button id="forge" type="button" class="quiet" disabled>Try to forge it</button>
+      </div>
+    </div>
+
+    <section class="verdict" id="verdict" hidden aria-live="polite"></section>
+
+    <ol class="ledger" id="ledger"></ol>
+  </main>
+</div>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>

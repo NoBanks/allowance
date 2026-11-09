@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test verifier/replay.test.mjs agent/agent.test.mjs",
+    "test": "node --test verifier/replay.test.mjs verifier/live-chain.test.mjs agent/agent.test.mjs",
     "agent": "node agent/run.mjs --brain claude",
     "agent:compromised": "node agent/run.mjs --brain compromised",
     "test:contract": "cd contract && cargo test",

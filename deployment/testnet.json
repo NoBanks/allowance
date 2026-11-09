@@ -1,12 +1,12 @@
 {
   "network": "testnet",
   "rpc": "https://test.rpc.fastnear.com",
-  "vault": "vault-2.allowance-box.testnet",
+  "vault": "vault-3.allowance-box.testnet",
   "owner": "allowance-box.testnet",
   "vendor": "api-vendor.allowance-box.testnet",
   "attacker": "attacker.allowance-box.testnet",
-  "agent_access_key": "ed25519:7gBdh2844pRRF8mTJ7tzxxrqmBM9PXRammDvCvhd2EnA",
-  "agent_signing_key": "f3ff1391beea586888deed89a2a2ac28a02a7ee89723018c64bb7ff60407752a",
+  "agent_access_key": "ed25519:8gUJwhFcXPNgoefcBf7mPt2YzRL7izWg88rApUTn3fvo",
+  "agent_signing_key": "1ab98254734ec25fc4752ab8452bdbe2adc1597f9dd674fe93e72bd228e5c863",
   "wasm_sha256": "4e5db20c797cb7461c2d303dbbec68feaa72e74772da5ac179c5d80ff8bd0057",
-  "created_tx": "2tDVqHzbG3yrCUcFWgcLxqu5EuGdBdBb37wzagCYpKki"
+  "created_tx": "Hs2m8fmG9LgefDRf1m1X9f64VtLq5BL2AkCAi3bG3Lsf"
 }

@@ -1,69 +1,97 @@
 {
-  "vault": "vault-2.allowance-box.testnet",
-  "ran_at": "2026-11-09T15:21:00.538Z",
+  "vault": "vault-3.allowance-box.testnet",
+  "ran_at": "2026-11-09T15:35:24.401Z",
   "results": [
     {
-      "name": "Raw transfer signed by the agent key",
-      "expected": "rejected",
-      "actual": "rejected: Not enough allowance for access key ed25519:7gBdh2844pRRF8mTJ7tzxxrqmBM9PXRammDvCvhd2EnA on account vault-2.allowance-box.testnet (allowance: 250000000000000000000000, cost: 100024",
+      "name": "Raw transfer signed by the agent key (0.001 NEAR, well under its gas allowance)",
+      "expected": "requires full access",
+      "actual": "refused: Access key requires full access",
       "passed": true,
       "tx": null
     },
     {
       "name": "Agent key calls set_policy to allowlist the attacker",
-      "expected": "rejected",
-      "actual": "rejected: Access key does not allow method set_policy",
+      "expected": "does not allow method set_policy",
+      "actual": "refused: Access key does not allow method set_policy",
       "passed": true,
       "tx": null
     },
     {
       "name": "Agent key calls withdraw",
-      "expected": "rejected",
-      "actual": "rejected: Access key does not allow method withdraw",
+      "expected": "does not allow method withdraw",
+      "actual": "refused: Access key does not allow method withdraw",
       "passed": true,
       "tx": null
     },
     {
       "name": "Agent key adds itself a full-access key",
-      "expected": "rejected",
-      "actual": "rejected: Access key requires full access",
+      "expected": "requires full access",
+      "actual": "refused: Access key requires full access",
       "passed": true,
       "tx": null
     },
     {
       "name": "Agent key attaches a deposit to propose",
-      "expected": "rejected",
-      "actual": "rejected: Deposit is not allowed with function call",
+      "expected": "deposit is not allowed",
+      "actual": "refused: Deposit is not allowed with function call",
       "passed": true,
       "tx": null
     },
     {
       "name": "Legitimate payment to the allowlisted vendor",
       "expected": "allowed",
-      "actual": "allowed (receipt 1)",
+      "actual": "allowed (receipt 5)",
       "passed": true,
-      "tx": "BKkhS1w9uy7fw5yFRAdtqmBBsgSzB17HvE4BVjPZA5HZ"
+      "tx": "66G9jPDvkSj6y87CuepUBeDqC71KwDUWVofEowCjC9uY"
     },
     {
       "name": "Injected payment to the attacker, under every cap",
       "expected": "blocked: recipient_not_allowed",
       "actual": "blocked: recipient_not_allowed",
       "passed": true,
-      "tx": "3bxQauMsfvZh4FjM6tyyYaJUJvcnQgPgRNLBNcqCChNa"
+      "tx": "9GqxujDZBi8LEgFcJn3mZqMNJf9epqt3RkpZrz8m73f"
     },
     {
       "name": "Allowlisted vendor, over the per-transaction cap",
       "expected": "blocked: over_tx_cap",
       "actual": "blocked: over_tx_cap",
       "passed": true,
-      "tx": "GzNEB1ZmLYpuMGuPurxSTu2mdAKSRXEAb1RAAyL6j5V"
+      "tx": "2wt2ivPuq9tqWTqTyUbTHbm1sLBJj3tjCN7cLvtuBKin"
     },
     {
       "name": "Drip attack hits the daily cap (0.05 + 0.1 + 0.1 fit, the next 0.1 does not)",
       "expected": "allowed, allowed, blocked: over_daily_cap",
       "actual": "allowed, allowed, blocked: over_daily_cap",
       "passed": true,
-      "tx": "64LmSUyPVVZYmDn9yrYssKLw3BJ6NpQFGFydGn9C6J1B"
+      "tx": "EgfnEA7BKzugTBbCJ91MsUxHkJed1jC8FSW5QL13rr3C"
+    },
+    {
+      "name": "Transfer to a nonexistent account fails, is receipted, and returns to the cap",
+      "expected": "settlement_failed, spent_today unchanged",
+      "actual": "allowed then settlement_failed, spent_today 270000000000000000000000 -> 270000000000000000000000",
+      "passed": true,
+      "tx": "DMhiscaL7uiJ6CzEhsF1Py1N6jGdLtnnMR65F3MtxUe4"
+    },
+    {
+      "name": "5 blocks in a row trip the circuit breaker",
+      "expected": "frozen: circuit_breaker",
+      "actual": "frozen: true, reason: circuit_breaker",
+      "passed": true,
+      "tx": "ViTv2gQ8gT7nZjJr5dqQM9rtsCXrsMh1Th172YZcx7C"
+    },
+    {
+      "name": "While frozen, even a legitimate payment is refused and storage stops growing",
+      "expected": "suppressed, receipt count unchanged",
+      "actual": "suppressed, receipts 23 -> 23, suppressed 1",
+      "passed": true,
+      "tx": "AnJkYrAwSTdWM8qhATZJGAuvzNXAdu8NJfWvEiquyoxq"
+    },
+    {
+      "name": "Only the owner can unfreeze it, and the receipt records what was suppressed",
+      "expected": "not frozen, suppressed count on the record",
+      "actual": "frozen: false, last receipt: {\"suppressed_attempts\":1}",
+      "passed": true,
+      "tx": null
     },
     {
       "name": "The attacker received nothing",

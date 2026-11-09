@@ -39,7 +39,9 @@ node verifier/verify.mjs
 
 Reads only public chain data and exits 0 for green, 1 for red.
 
-Deployed vault: see [deployment/testnet.json](deployment/testnet.json).
+Or open the **[dashboard](https://nobanks.github.io/allowance/dashboard/)**: a static page that reads the chain directly and runs the same replay code in your browser. **Verify it yourself** checks the live record. **Try to forge it** rewrites a real refusal as a payment on a private copy in your tab, redoes every hash, and shows the verifier catching it anyway. Add `?vault=<account>` to point it at any vault, including one you made with `npm run demo`.
+
+Deployed vault: see [deployment/testnet.json](deployment/testnet.json). Every claim here is mapped to a test and a line of code in [RECEIPTS.md](RECEIPTS.md).
 
 ## Run the agent
 

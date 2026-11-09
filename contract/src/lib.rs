@@ -152,6 +152,13 @@ fn validate_policy(p: &Policy) {
     }
 }
 
+/// Labels land inside JSON receipt details, so keep them to characters that need no escaping.
+fn agent_label_checked(label: String) -> String {
+    let ok = !label.is_empty() && label.len() <= 64 && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    require!(ok, "agent label must be 1 to 64 of a-z A-Z 0-9 - _");
+    label
+}
+
 fn parse_signing_key(hex: &str) -> [u8; 32] {
     let bytes = from_hex(hex).unwrap_or_else(|| env::panic_str("signing key is not hex"));
     bytes.try_into().unwrap_or_else(|_| env::panic_str("signing key must be 32 bytes"))
@@ -173,7 +180,7 @@ impl Vault {
         validate_policy(&policy);
         let mut vault = Self {
             owner_id: owner_id.clone(),
-            agent_label,
+            agent_label: agent_label_checked(agent_label),
             agent_signing_key: parse_signing_key(&agent_signing_key),
             policy,
             paused: false,
@@ -187,7 +194,13 @@ impl Vault {
             head_hash: GENESIS_PREV.to_string(),
             receipts: Vector::new(StorageKey::Receipts),
         };
-        let detail = vault.policy_json();
+        // Self-contained: a verifier needs nothing but the chain to replay it from here.
+        let detail = format!(
+            "{{\"policy\":{},\"agent_label\":{:?},\"signing_key\":{:?}}}",
+            vault.policy_json(),
+            vault.agent_label,
+            agent_signing_key
+        );
         vault.append("genesis", owner_id, None, 0, 0, String::new(), sha256_hex(b""), "", detail, String::new());
         vault.add_agent_key(agent_access_key, agent_gas_allowance);
         vault
@@ -320,7 +333,7 @@ impl Vault {
     pub fn rotate_agent(&mut self, label: String, signing_key: String, old_access_key: PublicKey, new_access_key: PublicKey, gas_allowance: U128) {
         self.assert_owner();
         self.agent_signing_key = parse_signing_key(&signing_key);
-        self.agent_label = label;
+        self.agent_label = agent_label_checked(label);
         let _ = Promise::new(env::current_account_id()).delete_key(old_access_key);
         self.add_agent_key(new_access_key, gas_allowance);
         let detail = format!("{{\"agent_label\":{:?},\"signing_key\":{:?}}}", self.agent_label, signing_key);

@@ -79,6 +79,16 @@ fn genesis_receipt_records_the_starting_policy() {
     assert_eq!(r[0].kind, "genesis");
     assert_eq!(r[0].prev_hash, GENESIS_PREV);
     assert!(r[0].detail.contains("vendor.testnet"));
+    assert!(r[0].detail.contains(&to_hex(agent_key().verifying_key().as_bytes())));
+    near_sdk::serde_json::from_str::<near_sdk::serde_json::Value>(&r[0].detail).expect("genesis detail is valid JSON");
+}
+
+#[test]
+fn agent_labels_that_would_break_receipt_json_are_refused() {
+    set_context(owner(), DAY_ONE_NOON);
+    let result = std::panic::catch_unwind(|| agent_label_checked("bad\"label".to_string()));
+    assert!(result.is_err());
+    assert_eq!(agent_label_checked("agent-1".to_string()), "agent-1");
 }
 
 #[test]

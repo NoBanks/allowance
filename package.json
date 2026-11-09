@@ -1,0 +1,23 @@
+{
+  "name": "allowance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An AI agent's spending account on NEAR. It can pay, but only inside the box, and every move is on the record.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test verifier/replay.test.mjs",
+    "test:contract": "cd contract && cargo test",
+    "build:contract": "cd contract && cargo near build non-reproducible-wasm --no-abi && node -e \"require('fs').copyFileSync('target/near/allowance.wasm','../deployment/allowance.wasm')\"",
+    "demo": "node scripts/demo.mjs",
+    "setup": "node scripts/setup-testnet.mjs",
+    "prove": "node scripts/prove-the-box.mjs",
+    "verify": "node verifier/verify.mjs"
+  },
+  "dependencies": {
+    "near-api-js": "7.2.0"
+  }
+}

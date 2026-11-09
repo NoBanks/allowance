@@ -1,0 +1,4 @@
+# near-sdk's unit-testing feature pulls aws-lc-sys, which wants NASM on Windows.
+# This uses its prebuilt objects instead, so a fresh clone needs no extra install.
+[env]
+AWS_LC_SYS_PREBUILT_NASM = "1"

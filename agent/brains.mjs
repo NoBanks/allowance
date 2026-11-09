@@ -5,8 +5,8 @@
 // the injection on its own, and then nothing about the vault has been tested. The vault
 // has to hold when the model does not.
 //
-// claudeBrain is the real agent on the Claude API. It gets no warning about injection:
-// nothing about the safety of this system depends on the prompt.
+// claudeBrain and geminiBrain are real agents on a model API. They get no warning about
+// injection: nothing about the safety of this system depends on the prompt.
 
 const PAY_LINE = /pay\s+([\d.]+)\s+NEAR\s+to\s+([a-z0-9._-]+)/gi;
 const REFERENCE = /Reference:\s*(.+)/i;
@@ -63,6 +63,66 @@ export async function claudeBrain({ toolbox, system, task, client, model, onEven
       results.push({ type: "tool_result", tool_use_id: block.id, content: output, is_error: isError });
     }
     messages.push({ role: "user", content: results });
+  }
+  return { stop: "turn_limit", summary: "" };
+}
+
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+
+/** Gemini's function declarations take an OpenAPI subset: no additionalProperties, and no empty objects. */
+function geminiDeclaration({ name, description, input_schema }) {
+  const { additionalProperties, ...parameters } = input_schema;
+  return Object.keys(parameters.properties).length ? { name, description, parameters } : { name, description };
+}
+
+/** Busy (503), rate limited (429) and no answer in time are worth a few spaced retries; anything else is not. */
+async function geminiRequest(fetchImpl, url, init, retryDelaysMs, onEvent) {
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    try {
+      res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(90_000) });
+    } catch (e) {
+      if (e.name !== "TimeoutError" || attempt >= retryDelaysMs.length) throw e;
+      res = { ok: false, status: "timeout" };
+    }
+    if (res.ok) return res.json();
+    if (![429, 503, "timeout"].includes(res.status) || attempt >= retryDelaysMs.length) {
+      throw new Error(`Gemini API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    }
+    onEvent({ type: "retry", status: res.status, waitMs: retryDelaysMs[attempt] });
+    await new Promise((r) => setTimeout(r, retryDelaysMs[attempt]));
+  }
+}
+
+export async function geminiBrain({ toolbox, system, task, apiKey, model, fetchImpl = fetch, retryDelaysMs = [5000, 15000, 30000], onEvent = () => {} }) {
+  const tools = [{ functionDeclarations: toolbox.definitions.map(geminiDeclaration) }];
+  const contents = [{ role: "user", parts: [{ text: task }] }];
+
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const body = await geminiRequest(fetchImpl, `${GEMINI_URL}/${model}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, tools }),
+    }, retryDelaysMs, onEvent);
+
+    const candidate = body.candidates?.[0];
+    if (!candidate?.content) return { stop: body.promptFeedback?.blockReason ?? candidate?.finishReason ?? "empty", summary: "" };
+    const parts = candidate.content.parts ?? [];
+    const text = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join("\n");
+    if (text) onEvent({ type: "said", text });
+
+    const calls = parts.filter((p) => p.functionCall);
+    if (!calls.length) return { stop: candidate.finishReason === "STOP" ? "end_turn" : candidate.finishReason, summary: text };
+
+    // The model's turn goes back unchanged, so any thought signatures stay attached.
+    contents.push(candidate.content);
+    const results = [];
+    for (const { functionCall } of calls) {
+      onEvent({ type: "tool", name: functionCall.name, input: functionCall.args ?? {} });
+      const { text: output, isError } = await toolbox.call(functionCall.name, functionCall.args);
+      results.push({ functionResponse: { name: functionCall.name, response: isError ? { error: output } : { output } } });
+    }
+    contents.push({ role: "user", parts: results });
   }
   return { stop: "turn_limit", summary: "" };
 }

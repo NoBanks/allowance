@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildInbox, SYSTEM, TASK } from "./inbox.mjs";
 import { buildToolbox, TOOL_DEFINITIONS } from "./tools.mjs";
-import { claudeBrain, compromisedBrain } from "./brains.mjs";
+import { claudeBrain, compromisedBrain, geminiBrain } from "./brains.mjs";
 
 const VENDOR = "vendor.testnet";
 const ATTACKER = "attacker.testnet";
@@ -175,4 +175,70 @@ test("the claude brain cannot loop forever", async () => {
   const client = scriptedClient(Array.from({ length: 50 }, loop));
   assert.equal((await claudeBrain(args(toolbox, client))).stop, "turn_limit");
   assert.equal(client.requests.length, 12);
+});
+
+function scriptedFetch(responses) {
+  const requests = [];
+  const fetchImpl = async (url, init) => {
+    requests.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+    return { ok: true, json: async () => responses.shift() };
+  };
+  return { requests, fetchImpl };
+}
+
+const geminiArgs = (toolbox, fetchImpl) => ({ toolbox, fetchImpl, system: "s", task: "t", model: "m", apiKey: "k", retryDelaysMs: [0, 0] });
+const modelTurn = (...parts) => ({ candidates: [{ finishReason: "STOP", content: { role: "model", parts } }] });
+
+test("the gemini brain runs tools, returns results, and stops when it is done", async () => {
+  const { wallet, toolbox } = setup();
+  const signed = { functionCall: { name: "pay", args: { recipient: VENDOR, amount_near: "0.02", memo: "Invoice 1001" } }, thoughtSignature: "sig" };
+  const { requests, fetchImpl } = scriptedFetch([modelTurn(signed), modelTurn({ text: "Paid." })]);
+  const out = await geminiBrain(geminiArgs(toolbox, fetchImpl));
+  assert.equal(out.stop, "end_turn");
+  assert.equal(out.summary, "Paid.");
+  assert.equal(wallet.calls.length, 1);
+  assert.equal(requests[0].headers["x-goog-api-key"], "k");
+  assert.doesNotMatch(requests[0].url, /key=/, "the key goes in a header, never the URL");
+  const [, back, results] = requests[1].body.contents;
+  assert.equal(back.parts[0].thoughtSignature, "sig", "the model's turn goes back unchanged");
+  assert.match(results.parts[0].functionResponse.response.output, /PAID/);
+});
+
+test("the gemini brain sees the same four tools in a shape Gemini accepts", async () => {
+  const { toolbox } = setup();
+  const { requests, fetchImpl } = scriptedFetch([modelTurn({ text: "ok" })]);
+  await geminiBrain({ ...geminiArgs(toolbox, fetchImpl), system: SYSTEM, task: TASK });
+  const declared = requests[0].body.tools[0].functionDeclarations;
+  assert.deepEqual(declared.map((d) => d.name), ["list_inbox", "read_document", "get_budget", "pay"]);
+  assert.doesNotMatch(JSON.stringify(declared), /additionalProperties/);
+  const prompt = requests[0].body.systemInstruction.parts[0].text + requests[0].body.contents[0].parts[0].text;
+  assert.doesNotMatch(prompt, /inject|ignore|untrusted|malicious|suspicious/i);
+});
+
+test("the gemini brain stops on a blocked prompt and on an API error", async () => {
+  const { wallet, toolbox } = setup();
+  const blocked = scriptedFetch([{ promptFeedback: { blockReason: "SAFETY" } }]);
+  assert.equal((await geminiBrain(geminiArgs(toolbox, blocked.fetchImpl))).stop, "SAFETY");
+  let tries = 0;
+  const failing = async () => (tries++, { ok: false, status: 429, text: async () => "quota" });
+  await assert.rejects(geminiBrain(geminiArgs(toolbox, failing)), /Gemini API 429/);
+  assert.equal(tries, 3, "one try and two retries");
+  const denied = async () => ({ ok: false, status: 400, text: async () => "bad request" });
+  await assert.rejects(geminiBrain(geminiArgs(toolbox, denied)), /Gemini API 400/);
+  assert.equal(wallet.calls.length, 0);
+});
+
+test("the gemini brain rides out a busy model", async () => {
+  const { toolbox } = setup();
+  const replies = [{ ok: false, status: 503, text: async () => "busy" }, { ok: true, json: async () => modelTurn({ text: "Done." }) }];
+  const out = await geminiBrain(geminiArgs(toolbox, async () => replies.shift()));
+  assert.equal(out.summary, "Done.");
+});
+
+test("the gemini brain cannot loop forever", async () => {
+  const { toolbox } = setup();
+  const loop = () => modelTurn({ functionCall: { name: "list_inbox", args: {} } });
+  const { requests, fetchImpl } = scriptedFetch(Array.from({ length: 50 }, loop));
+  assert.equal((await geminiBrain(geminiArgs(toolbox, fetchImpl))).stop, "turn_limit");
+  assert.equal(requests.length, 12);
 });

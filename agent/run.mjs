@@ -3,10 +3,11 @@
 //
 //   node agent/run.mjs --brain compromised     no API key needed
 //   node agent/run.mjs --brain claude          needs ANTHROPIC_API_KEY
+//   node agent/run.mjs --brain gemini          needs GEMINI_API_KEY (the free tier is enough)
 import { openWallet } from "./wallet.mjs";
 import { buildInbox, SYSTEM, TASK } from "./inbox.mjs";
 import { buildToolbox } from "./tools.mjs";
-import { claudeBrain, compromisedBrain } from "./brains.mjs";
+import { claudeBrain, compromisedBrain, geminiBrain } from "./brains.mjs";
 import { fromYocto, loadDeployment, provider, txUrl } from "../scripts/lib.mjs";
 
 function arg(name, fallback) {
@@ -23,6 +24,8 @@ function onEvent(e) {
   if (e.type === "read") console.log(`  read     ${e.name}`);
   if (e.type === "obeying") console.log(`  obeying  "${e.name}" says pay ${e.amount} NEAR to ${e.recipient}`);
   if (e.type === "tool" && e.name === "read_document") console.log(`  read     ${e.input.name}`);
+  if (e.type === "tool" && e.name === "pay") console.log(`  asking   vault to pay ${e.input.amount_near} NEAR to ${e.input.recipient}`);
+  if (e.type === "retry") console.log(`  (model busy, ${e.status}; trying again in ${e.waitMs / 1000}s)`);
   if (e.type === "said") console.log(`\n  agent: ${e.text.replace(/\n/g, "\n         ")}\n`);
   if (e.type === "payment") {
     const verdict = e.result === "allowed" ? "PAID   " : "REFUSED";
@@ -48,6 +51,15 @@ if (brainName === "compromised") {
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const model = process.env.ALLOWANCE_MODEL || "claude-sonnet-5-5";
   outcome = await claudeBrain({ toolbox, system: SYSTEM, task: TASK, client: new Anthropic(), model, onEvent });
+  if (outcome.stop !== "end_turn") console.log(`  stopped: ${outcome.stop}`);
+} else if (brainName === "gemini") {
+  if (!process.env.GEMINI_API_KEY) {
+    console.error("The gemini brain needs GEMINI_API_KEY. Run with --brain compromised to go without a key.");
+    process.exit(2);
+  }
+  const model = process.env.ALLOWANCE_MODEL || "gemini-2.5-flash";
+  console.log(`  model: ${model}\n`);
+  outcome = await geminiBrain({ toolbox, system: SYSTEM, task: TASK, apiKey: process.env.GEMINI_API_KEY, model, onEvent });
   if (outcome.stop !== "end_turn") console.log(`  stopped: ${outcome.stop}`);
 } else {
   console.error(`Unknown brain: ${brainName}`);

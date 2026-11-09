@@ -60,12 +60,14 @@ Every claim in the README, mapped to the code that does it and the test that che
 | The agent has four tools and no others | `agent/tools.mjs` | Unit: `agent/agent.test.mjs:51` |
 | The Claude brain's prompt has no injection warning | `agent/inbox.mjs:32` | Unit: `agent/agent.test.mjs:141` |
 | Bad amounts never reach the vault | `agent/tools.mjs` | Unit: `agent/agent.test.mjs:68` |
+| A real model ran the inbox and the vault refused what it got wrong | `agent/brains.mjs` | Live, once, Nov 9 2026, `gemini-3.5-flash`: paid invoice 1001, ignored the planted instruction, tried the forged 0.25 NEAR invoice and was refused `over_tx_cap` ([transaction](https://testnet.nearblocks.io/txns/7avc6J1Tv8Gt88B7cWdoCqAh9nbwLqZRDPfmDhxA1DZX)). Unit: the Gemini tests in `agent/agent.test.mjs` |
 
 ## Not proven
 
 Said plainly, so nobody has to find it.
 
-- **The Claude brain has not been run against the real API.** It passes tests against a scripted client only.
+- **The Claude brain has not been run against the real API.** It passes tests against a scripted client only. The Gemini brain has run live, once.
+- **One model run is an anecdote.** Whether a given model falls for the injection varies by model and by run. The vault does not depend on it either way.
 - **Allowed hours** are unit tested, never exercised live.
 - **`rotate_agent`** has no test. The README does not rely on it.
 - **`contract/src/lib.rs` was not reviewed by a third party.** Testnet only.

@@ -12,6 +12,7 @@
     "test": "node --test verifier/replay.test.mjs verifier/live-chain.test.mjs verifier/receipts-doc.test.mjs agent/agent.test.mjs",
     "agent": "node agent/run.mjs --brain claude",
     "agent:compromised": "node agent/run.mjs --brain compromised",
+    "agent:gemini": "node agent/run.mjs --brain gemini",
     "test:contract": "cd contract && cargo test",
     "build:contract": "cd contract && cargo near build non-reproducible-wasm --no-abi && node -e \"require('fs').copyFileSync('target/near/allowance.wasm','../deployment/allowance.wasm')\"",
     "demo": "node scripts/demo.mjs",

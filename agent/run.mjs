@@ -3,7 +3,7 @@
 //
 //   node agent/run.mjs --brain compromised     no API key needed
 //   node agent/run.mjs --brain claude          needs ANTHROPIC_API_KEY
-//   node agent/run.mjs --brain gemini          needs GEMINI_API_KEY (the free tier is enough)
+//   node agent/run.mjs --brain gemini          needs GEMINI_API_KEY, or several in GEMINI_API_KEYS
 import { openWallet } from "./wallet.mjs";
 import { buildInbox, SYSTEM, TASK } from "./inbox.mjs";
 import { buildToolbox } from "./tools.mjs";
@@ -25,6 +25,7 @@ function onEvent(e) {
   if (e.type === "obeying") console.log(`  obeying  "${e.name}" says pay ${e.amount} NEAR to ${e.recipient}`);
   if (e.type === "tool" && e.name === "read_document") console.log(`  read     ${e.input.name}`);
   if (e.type === "tool" && e.name === "pay") console.log(`  asking   vault to pay ${e.input.amount_near} NEAR to ${e.input.recipient}`);
+  if (e.type === "rotate") console.log(`  (key quota hit, ${e.status}; moving to key ${e.key} of ${e.of})`);
   if (e.type === "retry") console.log(`  (model busy, ${e.status}; trying again in ${e.waitMs / 1000}s)`);
   if (e.type === "said") console.log(`\n  agent: ${e.text.replace(/\n/g, "\n         ")}\n`);
   if (e.type === "payment") {
@@ -53,13 +54,14 @@ if (brainName === "compromised") {
   outcome = await claudeBrain({ toolbox, system: SYSTEM, task: TASK, client: new Anthropic(), model, onEvent });
   if (outcome.stop !== "end_turn") console.log(`  stopped: ${outcome.stop}`);
 } else if (brainName === "gemini") {
-  if (!process.env.GEMINI_API_KEY) {
-    console.error("The gemini brain needs GEMINI_API_KEY. Run with --brain compromised to go without a key.");
+  const apiKeys = (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "").split(",").map((k) => k.trim()).filter(Boolean);
+  if (!apiKeys.length) {
+    console.error("The gemini brain needs GEMINI_API_KEY (or a comma-separated GEMINI_API_KEYS). Run with --brain compromised to go without a key.");
     process.exit(2);
   }
-  const model = process.env.ALLOWANCE_MODEL || "gemini-2.5-flash";
-  console.log(`  model: ${model}\n`);
-  outcome = await geminiBrain({ toolbox, system: SYSTEM, task: TASK, apiKey: process.env.GEMINI_API_KEY, model, onEvent });
+  const model = process.env.ALLOWANCE_MODEL || "gemini-3.5-flash";
+  console.log(`  model: ${model}, keys: ${apiKeys.length}\n`);
+  outcome = await geminiBrain({ toolbox, system: SYSTEM, task: TASK, apiKeys, model, onEvent });
   if (outcome.stop !== "end_turn") console.log(`  stopped: ${outcome.stop}`);
 } else {
   console.error(`Unknown brain: ${brainName}`);

@@ -75,35 +75,52 @@ function geminiDeclaration({ name, description, input_schema }) {
   return Object.keys(parameters.properties).length ? { name, description, parameters } : { name, description };
 }
 
-/** Busy (503), rate limited (429) and no answer in time are worth a few spaced retries; anything else is not. */
-async function geminiRequest(fetchImpl, url, init, retryDelaysMs, onEvent) {
-  for (let attempt = 0; ; attempt++) {
+/**
+ * Several keys may be given. A quota, permission or invalid-key error moves to the next key at once, once per key.
+ * Busy (503), no answer in time, or a 429 on the last key gets a few spaced retries. Anything else is final.
+ * The key travels in a header, never the URL, so error text is safe to log.
+ */
+async function geminiRequest(fetchImpl, url, init, keys, cursor, retryDelaysMs, onEvent) {
+  let rotations = 0;
+  for (let attempt = 0; ; ) {
+    const key = keys[cursor.at % keys.length];
     let res;
     try {
-      res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(90_000) });
+      res = await fetchImpl(url, { ...init, headers: { ...init.headers, "x-goog-api-key": key }, signal: AbortSignal.timeout(90_000) });
     } catch (e) {
       if (e.name !== "TimeoutError" || attempt >= retryDelaysMs.length) throw e;
       res = { ok: false, status: "timeout" };
     }
     if (res.ok) return res.json();
+    const detail = res.text ? (await res.text()).slice(0, 300) : "";
+    const badKey = [429, 403].includes(res.status) || (res.status === 400 && detail.includes("API_KEY_INVALID"));
+    if (badKey && rotations < keys.length - 1) {
+      rotations++;
+      cursor.at++;
+      onEvent({ type: "rotate", status: res.status, key: (cursor.at % keys.length) + 1, of: keys.length });
+      continue;
+    }
     if (![429, 503, "timeout"].includes(res.status) || attempt >= retryDelaysMs.length) {
-      throw new Error(`Gemini API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      throw new Error(`Gemini API ${res.status}: ${detail}`);
     }
     onEvent({ type: "retry", status: res.status, waitMs: retryDelaysMs[attempt] });
-    await new Promise((r) => setTimeout(r, retryDelaysMs[attempt]));
+    await new Promise((r) => setTimeout(r, retryDelaysMs[attempt++]));
+    rotations = 0;
   }
 }
 
-export async function geminiBrain({ toolbox, system, task, apiKey, model, fetchImpl = fetch, retryDelaysMs = [5000, 15000, 30000], onEvent = () => {} }) {
+export async function geminiBrain({ toolbox, system, task, apiKeys, model, fetchImpl = fetch, retryDelaysMs = [5000, 15000, 30000], onEvent = () => {} }) {
+  if (!apiKeys?.length) throw new Error("geminiBrain needs at least one API key");
   const tools = [{ functionDeclarations: toolbox.definitions.map(geminiDeclaration) }];
   const contents = [{ role: "user", parts: [{ text: task }] }];
+  const cursor = { at: 0 };
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const body = await geminiRequest(fetchImpl, `${GEMINI_URL}/${model}:generateContent`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, tools }),
-    }, retryDelaysMs, onEvent);
+    }, apiKeys, cursor, retryDelaysMs, onEvent);
 
     const candidate = body.candidates?.[0];
     if (!candidate?.content) return { stop: body.promptFeedback?.blockReason ?? candidate?.finishReason ?? "empty", summary: "" };

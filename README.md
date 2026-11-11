@@ -50,7 +50,7 @@ The scenario is an inbox with one honest invoice, one vendor status page with a 
 ```
 npm run setup              # make your own vault (or use npm run demo first)
 npm run agent:compromised  # no API key
-npm run agent:gemini       # needs GEMINI_API_KEY (free tier works), default model gemini-2.5-flash
+npm run agent:gemini       # needs GEMINI_API_KEY, or several comma-separated in GEMINI_API_KEYS; default model gemini-3.5-flash
 npm run agent              # needs ANTHROPIC_API_KEY, default model claude-sonnet-5-5
 ```
 

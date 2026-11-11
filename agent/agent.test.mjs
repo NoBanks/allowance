@@ -186,7 +186,7 @@ function scriptedFetch(responses) {
   return { requests, fetchImpl };
 }
 
-const geminiArgs = (toolbox, fetchImpl) => ({ toolbox, fetchImpl, system: "s", task: "t", model: "m", apiKey: "k", retryDelaysMs: [0, 0] });
+const geminiArgs = (toolbox, fetchImpl) => ({ toolbox, fetchImpl, system: "s", task: "t", model: "m", apiKeys: ["k"], retryDelaysMs: [0, 0] });
 const modelTurn = (...parts) => ({ candidates: [{ finishReason: "STOP", content: { role: "model", parts } }] });
 
 test("the gemini brain runs tools, returns results, and stops when it is done", async () => {
@@ -226,6 +226,29 @@ test("the gemini brain stops on a blocked prompt and on an API error", async () 
   const denied = async () => ({ ok: false, status: 400, text: async () => "bad request" });
   await assert.rejects(geminiBrain(geminiArgs(toolbox, denied)), /Gemini API 400/);
   assert.equal(wallet.calls.length, 0);
+});
+
+test("the gemini brain moves past a dead key and a key out of quota", async () => {
+  const { toolbox } = setup();
+  const used = [];
+  const fetchImpl = async (url, init) => {
+    used.push(init.headers["x-goog-api-key"]);
+    const key = init.headers["x-goog-api-key"];
+    if (key === "a") return { ok: false, status: 400, text: async () => '{"reason":"API_KEY_INVALID"}' };
+    if (key === "b") return { ok: false, status: 429, text: async () => "quota" };
+    return { ok: true, json: async () => modelTurn({ text: "Done." }) };
+  };
+  const out = await geminiBrain({ ...geminiArgs(toolbox, fetchImpl), apiKeys: ["a", "b", "c"] });
+  assert.equal(out.summary, "Done.");
+  assert.deepEqual(used, ["a", "b", "c"]);
+});
+
+test("the gemini brain gives up once every key is out of quota", async () => {
+  const { toolbox } = setup();
+  let tries = 0;
+  const fetchImpl = async () => (tries++, { ok: false, status: 429, text: async () => "quota" });
+  await assert.rejects(geminiBrain({ ...geminiArgs(toolbox, fetchImpl), apiKeys: ["a", "b"] }), /Gemini API 429/);
+  assert.equal(tries, 6, "each of 3 tries walks both keys");
 });
 
 test("the gemini brain rides out a busy model", async () => {

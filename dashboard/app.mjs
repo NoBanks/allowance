@@ -270,7 +270,9 @@ async function runVerify() {
 // Works on a private copy in this browser tab. Nothing is written anywhere.
 function runForge() {
   const copy = state.receipts.map((r) => ({ ...r }));
-  const i = copy.findIndex((r) => r.kind === "blocked" && r.reason === "recipient_not_allowed");
+  // Prefer the injected payment to the attacker; any other refusal works too.
+  const injected = copy.findIndex((r) => r.kind === "blocked" && r.reason === "recipient_not_allowed");
+  const i = injected >= 0 ? injected : copy.findIndex((r) => r.kind === "blocked");
   if (i < 0) {
     showVerdict({ red: false, title: "Nothing to forge yet.", checks: [{ pass: true, text: "This vault has no refused payment to rewrite." }] });
     return;
